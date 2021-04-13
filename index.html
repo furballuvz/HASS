@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<style>
+
+@import url(https://fonts.googleapis.com/css?family=Roboto:400,500,700,300,100);
+    
+body {
+    font-family: "Roboto", helvetica, arial, sans-serif;
+    display: block;
+    margin: auto;
+    padding:30px;
+    width: 100%;
+    text-align: center;
+}
+h3 {
+   font-size: 30px;
+   font-weight: 400;
+   font-style:normal;
+   text-transform:uppercase;
+}
+p {
+   color: #404040;
+   font-size: 16px;
+   font-style:normal;
+}
+</style>
+<script src="https://d3js.org/d3.v6.min.js"></script>
+<h3>Male Population in Singapore Subdistricts</h3>
+<p> Data retrieved from  <a href="https://www.singstat.gov.sg/publications/population/population-trends">singstat.gov.sg</a>.</p>
+<svg></svg>
+<script>
+
+
+var width = 1000, height = 600;
+
+var svg = d3.select("svg")
+    .attr("viewBox", "0 0 " + width + " " + height)
+
+Promise.all([d3.json("sgmap.json"), d3.csv("population2020.csv")]).then(data => {
+
+    
+    //Match zones from the 2 datasets by name and add PopMale value to sgmap
+    data[0].features.forEach (map => {
+        let result = data[1].filter( zone => {
+			return zone.Subzone.toUpperCase() === map.properties.Name
+		});
+		//console.log(result[0].PopMale);
+		if ((typeof result[0] !== "undefined") && (result[0].PopMale !== "-")) {
+        		map.properties.male = result[0].PopMale;
+		}
+	});
+	
+    var projection = d3.geoMercator()
+        .center([103.851959, 1.290270])
+        .fitExtent([[20, 20], [980, 580]], data[0]);
+    var geopath = d3.geoPath().projection(projection);
+ 
+    
+    var x = d3.scaleLinear()
+        .domain([500, 20000])
+        .range([600, 870]);
+    
+    var color = d3.scaleQuantize()
+        .domain([500,20000])
+        .range(d3.schemeBlues[9]);
+    
+    var g = svg.append("g")
+        .attr("class", "key")
+        .attr("transform", "translate(0,40)");
+        
+    //creating the legend
+    g.selectAll("rect")
+        .data(color.range().map(d => {
+            d = color.invertExtent(d);
+            if (d[0] == null) d[0] = x.domain()[0];
+            if (d[1] == null) d[1] = x.domain()[1];
+            //console.log(d);
+            return d;
+        }))
+        .enter().append("rect")
+        .attr("height", 8)
+        .attr("x",(d,i) => {
+    		return i*30 + 600;
+    	})
+        .attr("width",'30')
+        .attr("fill", d => {
+            return color(d[0]); 
+        });
+    
+    
+    g.append("text")
+        .attr("class", "caption")
+        .attr("x", x.range()[0])
+        .attr("y", -6)
+        .attr("fill", "#000")
+        .attr("text-anchor", "start")
+        .attr("font-weight", "bold")
+        .text("Male Population");
+    
+    g.call(d3.axisBottom(x)
+        .tickSize(13)
+        .tickValues([2666, 4833, 7000, 9166, 11333, 13500, 15666, 17833])
+        )
+      .select(".domain")
+        .remove();
+    
+    //creating map
+    svg.append("g")
+    	.attr("id", "Singapore")
+    	.selectAll("path")
+    	.data(data[0].features)
+    	.enter()
+    	.append("path")
+    	.attr("d",  d => geopath(d))
+    	.attr("fill", d => {
+        	if (typeof d.properties.male !== "undefined"){
+        		return color(d.properties.male);
+    		}else{
+        		return "#777";
+    		}
+    	})
+    	.attr("stroke", "#404040")
+        .attr("stroke-width", 1)
+    	.append("title")
+        .text(d => { 
+            if (typeof d.properties.male !== "undefined"){
+        		return d.properties.Name + ": " + d.properties.male;
+    		}else{
+        		return d.properties.Name + ": No Data Available";
+    		} 
+        });	
+
+});
+</script>
